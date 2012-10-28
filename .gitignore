@@ -1,0 +1,5 @@
+*~
+*.beam
+/priv/upload/*
+/priv/_posts/*
+/deps/*
