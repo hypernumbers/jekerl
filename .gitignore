@@ -3,3 +3,4 @@
 /priv/upload/*
 /priv/_posts/*
 /deps/*
+/ebin/jekerl.app
