@@ -1,0 +1,11 @@
+{application, jekerl,
+ [
+  {description, "jekerl"},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {env, []}
+ ]}.
