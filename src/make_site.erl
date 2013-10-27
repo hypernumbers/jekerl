@@ -8,21 +8,51 @@
 -module(make_site).
 
 -export([
-         make_site/5
+         make_site/6,
+         make_site/1
         ]).
 
 -include("html.hrl").
 -include("jekerl.hrl").
 
-make_site(InputDir, OutputDir, AssetsDir, BlogDir, _Options) ->
-    Dirs = [InputDir, OutputDir, AssetsDir],
-    [ok = filelib:ensure_dir(X ++ "/junk.txt") || X <- Dirs],
-    Site = #site{outputdir = OutputDir,
+make_site(InputDir, OutputDir, AssetsDir, BlogDir, DefModule, Options) ->
+    Site = #site{inputdir  = InputDir,
+                 outputdir = OutputDir,
                  assetsdir = AssetsDir,
-                 blogdir   = BlogDir},
-    NewSite = process_files([InputDir], Site),
-    io:format("NewSite is ~p~n", [NewSite]),
+                 blogdir   = BlogDir,
+                 defaults  = DefModule,
+                 options   = Options
+                },
+    make_site(Site).
+
+make_site(Site) when is_record(Site, site) ->
+    ok = do_housekeeping(Site#site.outputdir),
+    NewSite = process_files([Site#site.inputdir], Site),
+    ok = write_site(NewSite),
     ok.
+
+write_site(#site{pages = Pages} = Site) ->
+    ok = write_files(Pages, [], false, Site),
+    ok.
+
+write_files([], _RevPath, _IsBlog, _Site) ->
+    ok;
+write_files([{Seg, {Pages, _Contents}} | T], RevPath, IsBlog, Site) ->
+    #site{outputdir = O} = Site,
+    Dir = string:join([O | lists:reverse([Seg | RevPath])], "/"),
+    [ok = write_file(Dir, X, Site) || X <- Pages],
+    io:format("Pages is ~p~n ~p~p ~p~n", [Pages, Seg, RevPath, IsBlog]),
+    write_files(T, RevPath, IsBlog, Site).
+
+write_file(Dir, P, Site) ->
+    {FileName, HTML} = make_html(P, Site),
+    io:format("Dir is ~p~n", [Dir]),
+    File = Dir ++ "/" ++ FileName,
+    ok = filelib:ensure_dir(File),
+    file:write_file(File, HTML).
+
+make_html(#page{main = M, outputfile = {_, FileName}}, _Site) ->
+    {FileName, M}.
 
 process_files([], Site) ->
     Site;
@@ -38,40 +68,43 @@ process_files([H | T], Site) ->
            end,
     process_files(T, NewS).
 
-process(File, Page, #site{pages   = Pages,
-                          blogdir = Blogdir} = Site) ->
+process(File, Page, #site{pages    = Pages,
+                          inputdir = InputDir,
+                          blogdir  = Blogdir,
+                          defaults = DefModule} = Site) ->
     case filename:extension(File) of
-        ".hyde" -> NewPage = p2(File, Blogdir, Page),
-                   Site#site{pages = [NewPage | Pages]};
+        ".hyde" -> NewPage = p2(File, InputDir, Blogdir, DefModule, Page),
+                   #page{outputfile = {Dir, _Name}} = NewPage,
+                   Site#site{pages = add_page(Dir, NewPage, Pages)};
         _       -> Site
     end.
 
-p2(File, Blogdir, Page) ->
+p2(File, InputDir, Blogdir, DefModule, Page) ->
     {ok, Page2} = read_lines(File, Page),
     #page{date = Date} = Page2,
     case filename:dirname(File) of
-        Blogdir -> Dest = make_dest(File, Date, true),
+        Blogdir -> Dest = make_dest(File, InputDir, DefModule, Date, true),
                    Page2#page{is_blog    = true,
                               outputfile = Dest};
-        _       -> Dest = make_dest(File, Date, false),
+        _       -> Dest = make_dest(File, InputDir, DefModule, Date, false),
                    Page2#page{is_blog    = false,
                               outputfile = Dest}
     end.
 
-make_dest(File, {{Y, M, D}, _}, true) ->
-    Dir = "_"
-     ++ integer_to_list(D)
-     ++ "/"
-     ++ integer_to_list(M)
-     ++ "/"
-     ++ integer_to_list(Y)
-     ++ "/",
+make_dest(File, _InputDir, DefModule, Date, true) ->
+    Dir = ["_" | DefModule:blog_dir(Date)],
     HTML = filename:basename(File, ".hyde") ++ ".html",
     {Dir, HTML};
-make_dest(File, _, false) ->
-    Dir = filename:dirname(File) ++ "/",
+make_dest(File, InputDir, _DefModule, _Date, false) ->
+    Dir = string:tokens(filename:dirname(File), "/"),
+    Path = make_path(string:tokens(InputDir, "/"), Dir),
     HTML = filename:basename(File, ".hyde") ++ ".html",
-    {Dir, HTML}.
+    {Path, HTML}.
+
+make_path([H | T1], [H | T2]) ->
+    make_path(T1, T2);
+make_path(_, Dir) ->
+    Dir.
 
 read_lines(File, Page) ->
     case file:open(File, read) of
@@ -126,3 +159,220 @@ finalise(#page{type = Type,
             end,
     P#page{main = NewM2}.
 
+add_page([], Page, Pages) ->
+    NewV = case lists:keyfind("", 1, Pages) of
+               false                -> {[Page],      []};
+               {"", {Ps, Contents}} -> {[Page | Ps], Contents}
+           end,
+    lists:keystore("", 1, Pages, {"", NewV});
+add_page([H | []], Page, Pages) ->
+    NewV = case lists:keyfind(H, 1, Pages) of
+               false               -> {[Page],      []};
+               {H, {Ps, Contents}} -> {[Page | Ps], Contents}
+           end,
+    lists:keystore(H, 1, Pages, {H, NewV});
+add_page([H | T], Page, Pages) ->
+    NewV = case lists:keyfind(H, 1, Pages) of
+               false               -> {[], add_page(T, Page, [])};
+               {H, {Ps, Contents}} -> {Ps, add_page(T, Page, Contents)}
+           end,
+    lists:keystore(H, 1, Pages, {H, NewV}).
+
+do_housekeeping(Dir) ->
+    case has_dir(Dir) of
+        true  -> ok = clear_old_files(Dir);
+        false -> filelib:ensure_dir(Dir ++ "/nonce.file")
+    end.
+
+has_dir(Dir) ->
+    case file:list_dir(Dir) of
+        {error, _} -> false;
+        {ok, _}    -> true
+    end.
+
+clear_old_files(Dir) ->
+    case file:list_dir(Dir) of
+        {error, _}  -> ok; % directory doesn't exist, that's ok
+        {ok, Files} -> [ok = file:delete(Dir ++ "/" ++ X) || X <- Files],
+                       ok
+    end.
+
+%%%
+%%% Unit Tests and stuff
+%%%
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+test_runner(Actions, Expected) ->
+    Got = run_actions(Actions, []),
+    io:format("Got is      ~p~nExpected is ~p~n", [Got, Expected]),
+    ?assertEqual(Expected, Got).
+
+run_actions([], Pages) ->
+    Pages;
+run_actions([{add_page, H} | T], Pages) ->
+    #page{outputfile = {Dir, _Name}} = H,
+    NewPs = add_page(Dir, H, Pages),
+    run_actions(T, NewPs).
+
+root_test() ->
+    Path = [],
+    Page = #page{outputfile = {Path, name}},
+    Expected = [{"", {[Page], []}}],
+    test_runner([{add_page, Page}], Expected).
+
+root_2_test() ->
+    Path1 = [],
+    Page1 = #page{outputfile = {Path1, name}},
+    Path2 = ["yando"],
+    Page2 = #page{outputfile = {Path2, name}},
+    Expected = [
+                {"",      {[Page1], []}},
+                {"yando", {[Page2], []}}
+               ],
+    test_runner([
+                 {add_page, Page1},
+                 {add_page, Page2}
+                ], Expected).
+
+%% swap the order of adding pages
+root_2a_test() ->
+    Path1 = [],
+    Page1 = #page{outputfile = {Path1, name}},
+    Path2 = ["yando"],
+    Page2 = #page{outputfile = {Path2, name}},
+    Expected = [
+                {"yando", {[Page2], []}},
+                {"",      {[Page1], []}}
+               ],
+    test_runner([
+                 {add_page, Page2},
+                 {add_page, Page1}
+                ], Expected).
+
+simple_test() ->
+    Path = ["bish"],
+    Page = #page{outputfile = {Path, name}},
+    Expected = [{"bish", {[Page], []}}],
+    test_runner([{add_page, Page}], Expected).
+
+simple_1_test() ->
+    Path = ["bish", "bosh", "bash"],
+    Page = #page{outputfile = {Path, name}},
+    Expected = [
+                {"bish", {[], [
+                               {"bosh", {[], [
+                                              {"bash", {[Page], []}}
+                                             ]
+                                        }
+                               }
+                              ]
+                         }
+                }
+               ],
+    test_runner([{add_page, Page}], Expected).
+
+simple_2_test() ->
+    Path1 = ["bish"],
+    Page1 = #page{outputfile = {Path1, name}},
+    Path2 = ["bish", "bosh"],
+    Page2 = #page{outputfile = {Path2, name}},
+    Expected = [{"bish", {[Page1], [{"bosh", {[Page2], []}}]}}],
+    test_runner([
+                 {add_page, Page1},
+                 {add_page, Page2}
+                ], Expected).
+
+%% swap the order of adding pages
+simple_2a_test() ->
+    Path1 = ["bish"],
+    Page1 = #page{outputfile = {Path1, name}},
+    Path2 = ["bish", "bosh"],
+    Page2 = #page{outputfile = {Path2, name}},
+    Expected = [{"bish", {[Page1], [{"bosh", {[Page2], []}}]}}],
+    test_runner([
+                 {add_page, Page2},
+                 {add_page, Page1}
+                ], Expected).
+
+simple_3_test() ->
+    Path1 = ["bish"],
+    Page1 = #page{outputfile = {Path1, name}},
+    Path2 = ["bish", "bosh"],
+    Page2 = #page{outputfile = {Path2, name}},
+    Path3 = ["bish", "boosh"],
+    Page3 = #page{outputfile = {Path3, name}},
+    Expected = [{"bish", {[Page1], [
+                                    {"bosh",  {[Page2], []}},
+                                    {"boosh", {[Page3], []}}
+                                   ]
+                         }
+                }
+               ],
+
+    test_runner([
+                 {add_page, Page1},
+                 {add_page, Page2},
+                 {add_page, Page3}
+                ], Expected).
+
+
+%% swap the order of adding pages
+simple_3a_test() ->
+    Path1 = ["bish"],
+    Page1 = #page{outputfile = {Path1, name}},
+    Path2 = ["bish", "bosh"],
+    Page2 = #page{outputfile = {Path2, name}},
+    Path3 = ["bish", "boosh"],
+    Page3 = #page{outputfile = {Path3, name}},
+    Expected = [{"bish", {[Page1], [
+                                    {"bosh",  {[Page2], []}},
+                                    {"boosh", {[Page3], []}}
+                                   ]
+                         }
+                }
+               ],
+    test_runner([
+                 {add_page, Page2},
+                 {add_page, Page3},
+                 {add_page, Page1}
+                ], Expected).
+
+simple_4_test() ->
+    Path1 = ["bish"],
+    Page1 = #page{outputfile = {Path1, name}},
+    Path2 = ["bish", "bosh"],
+    Page2a = #page{outputfile = {Path2, name}},
+    Page2b = #page{outputfile = {Path2, nom}},
+    Expected = [{"bish", {[Page1], [
+                                    {"bosh",  {[Page2b, Page2a], []}}
+                                   ]
+                         }
+                }
+               ],
+    test_runner([
+                 {add_page, Page1},
+                 {add_page, Page2a},
+                 {add_page, Page2b}
+                ], Expected).
+
+%% swap the order of adding pages
+simple_4a_test() ->
+    Path1 = ["bish"],
+    Page1 = #page{outputfile = {Path1, name}},
+    Path2 = ["bish", "bosh"],
+    Page2a = #page{outputfile = {Path2, name}},
+    Page2b = #page{outputfile = {Path2, nom}},
+    Expected = [{"bish", {[Page1], [
+                                    {"bosh",  {[Page2b, Page2a], []}}
+                                   ]
+                         }
+                }
+               ],
+    test_runner([
+                 {add_page, Page2a},
+                 {add_page, Page1},
+                 {add_page, Page2b}
+                ], Expected).
+
+-endif.
