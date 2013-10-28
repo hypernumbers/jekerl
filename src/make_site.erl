@@ -37,16 +37,50 @@ write_site(#site{pages = Pages} = Site) ->
 
 write_files([], _RevPath, _IsBlog, _Site) ->
     ok;
-write_files([{Seg, {Pages, _Contents}} | T], RevPath, IsBlog, Site) ->
+write_files([{Seg, {Pages, Contents}} | T], RevPath, IsBlog, Site) ->
+    NewIsBlog = case {IsBlog, Seg} of
+                    {true, _}    -> true;
+                    {false, "_"} -> true;
+                    _            -> false
+                end,
     #site{outputdir = O} = Site,
     Dir = string:join([O | lists:reverse([Seg | RevPath])], "/"),
-    [ok = write_file(Dir, X, Site) || X <- Pages],
-    io:format("Pages is ~p~n ~p~p ~p~n", [Pages, Seg, RevPath, IsBlog]),
+    case Pages of
+        [] -> case NewIsBlog of
+                  false -> ok = write_blank(Dir, Site);
+                  true  -> ok = write_contents(Dir, Contents, Site)
+              end;
+        _  -> case NewIsBlog of
+                  true  -> ok = write_index(Dir, Pages, Site);
+                  false -> ok
+              end,
+              [ok = write_file(Dir, X, Site) || X <- Pages]
+    end,
+    ok = write_files(Contents, [Seg | RevPath], NewIsBlog, Site),
+    %% cut back to the original IsBlog value
     write_files(T, RevPath, IsBlog, Site).
+
+write_index(Dir, Pages, Site) ->
+    Main = ["<p><a href='./" ++ X ++ "'>" ++ X ++ "</a></p>"
+            || #page{outputfile = {_, X}} <- Pages],
+    Page = #page{main       = lists:flatten(Main),
+                 outputfile = {Dir, "index.html"}},
+    write_file(Dir, Page, Site).
+
+write_contents(Dir, Contents, Site) ->
+    Main = ["<a href='./" ++ X ++ "/'>" ++ X ++ "</a>" || {X, _} <- Contents],
+    Page = #page{main       = lists:flatten(Main),
+                 outputfile = {Dir, "index.html"}},
+    write_file(Dir, Page, Site).
+
+write_blank(Dir, Site) ->
+    #site{defaults = DefModule} = Site,
+    Page = #page{main       = DefModule:blank_page(),
+                 outputfile = {Dir, "index.html"}},
+    write_file(Dir, Page, Site).
 
 write_file(Dir, P, Site) ->
     {FileName, HTML} = make_html(P, Site),
-    io:format("Dir is ~p~n", [Dir]),
     File = Dir ++ "/" ++ FileName,
     ok = filelib:ensure_dir(File),
     file:write_file(File, HTML).

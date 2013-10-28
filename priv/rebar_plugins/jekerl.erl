@@ -15,7 +15,7 @@
 -define(OUTPUTDIR, "./priv/html").
 -define(ASSETSDIR, "./priv/assets").
 -define(BLOGDIR,   "./priv/jekerl/blog").
--define(DEFMODULE, jekerl_def).
+-define(DEFMODULE, defaults).
 
 
 jekerl(_A, B) ->
