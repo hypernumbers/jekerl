@@ -8,31 +8,193 @@
 -module(make_site).
 
 -export([
-         make_site/6,
+         make_site/9,
          make_site/1
         ]).
 
 -include("html.hrl").
 -include("jekerl.hrl").
 
-make_site(InputDir, OutputDir, AssetsDir, BlogDir, DefModule, Options) ->
-    Site = #site{inputdir  = InputDir,
-                 outputdir = OutputDir,
-                 assetsdir = AssetsDir,
-                 blogdir   = BlogDir,
-                 defaults  = DefModule,
-                 options   = Options
+make_site(Title, URL, Description, InputDir, OutputDir, AssetsDir,
+          BlogDir, DefModule, Options) ->
+    Site = #site{title       = Title,
+                 url         = URL,
+                 description = Description,
+                 inputdir    = InputDir,
+                 outputdir   = OutputDir,
+                 assetsdir   = AssetsDir,
+                 blogdir     = BlogDir,
+                 defaults    = DefModule,
+                 options     = Options
                 },
     make_site(Site).
 
 make_site(Site) when is_record(Site, site) ->
     ok = do_housekeeping(Site#site.outputdir),
     NewSite = process_files([Site#site.inputdir], Site),
-    ok = write_site(NewSite),
+    NewSite2 = process_site(NewSite),
+    ok = write_site(NewSite2),
     ok.
 
-write_site(#site{pages = Pages} = Site) ->
+process_site(#site{pages    = Pages,
+                   defaults = DefModule} = Site) ->
+    Cs = process_s2(Pages, [], false, #components{}),
+    #components{navigation = N,
+                sidebar    = SB,
+                rss        = RSS,
+                sitemap    = SM} = Cs,
+    Cs2 = Cs#components{navigation = DefModule:make_navigation(N),
+                          sidebar    = DefModule:make_sidebar(SB),
+                          rss        = finalise_rss(Site, RSS),
+                          sitemap    = finalise_sitemap(SM)},
+    Site#site{components = Cs2}.
+
+process_s2([], _RevPath, _IsBlog, Components) ->
+    Components;
+process_s2([{Seg, {Ps, Cnts}} | T], RevPath, IsBlog, Cmps) ->
+    NewIsBlog = case {IsBlog, Seg} of
+                    {true, _}    -> true;
+                    {false, "_"} -> true;
+                    _            -> false
+                end,
+    C3 = case Ps of
+             [] -> Cmps;
+             _  -> N2 = get_nav(Ps, []),
+                   C2 = #components{navigation = N2},
+                   merge(Cmps, C2, Seg, RevPath)
+         end,
+    {RSS2, SM2} = get_rss_sitemap(Ps, [], []),
+    S2 = get_sidebar(Ps, IsBlog, []),
+    C4 = #components{sidebar = S2,
+                     rss     = RSS2,
+                     sitemap = SM2},
+    C5 = merge(C3, C4, Seg, RevPath),
+    C7 = case Cnts of
+             [] -> C5;
+             _  -> C6 = process_s2(Cnts, [Seg | RevPath],
+                                   NewIsBlog, #components{}),
+                   merge(C5, C6, Seg, RevPath)
+         end,
+    process_s2(T, RevPath, IsBlog, C7).
+
+merge(C1, C2, Seg, RevPath) ->
+    #components{navigation = N1,
+                sidebar    = SB1,
+                rss        = R1,
+                sitemap    = SM1} = C1,
+    #components{navigation = N2,
+                sidebar    = SB2,
+                rss        = R2,
+                sitemap    = SM2} = C2,
+    Dir = string:join(lists:reverse(RevPath), "/"),
+    Seg2 = case Seg of
+               "_" -> "Blog";
+               _   -> Seg
+           end,
+    SubNav = #navigation{dir    = Dir,
+                         file   = Seg2,
+                         subnav = N2},
+    #components{navigation = merge2(N1, [SubNav]),
+                sidebar    = merge2(SB1, SB2),
+                rss        = merge2(R1, R2),
+                sitemap    = merge2(SM1, SM2)}.
+
+merge2(none, none) -> [];
+merge2(none, M)    -> M;
+merge2(M, none)    -> M;
+merge2(M1, M2)     -> lists:merge([M1, M2]).
+
+finalise_rss(#site{title       = Title,
+                   url         = URL,
+                   description = Desc}, Items) ->
+    RSS = "<rss version='2.0'>\n" ++
+        "<channel>\n" ++
+        "<title>" ++ Title ++ "</title>\n" ++
+        "<link>" ++ URL ++ "</link>\n" ++
+        "<description>" ++ Desc ++ "</desc>\n" ++
+        "<pubDate>" ++ dh_date:format("Y M d H is") ++ "</pubDate>\n" ++
+        "<docs>http://blogs.law.harvard.edu/tech/rss</docs>\n" ++
+        "<generator>Jekerl http://github.com/hypernumbers/jekerl"
+        ++ "</generator>\n" ++
+        string:join(Items, "\n") ++ "\n" ++
+        "</channel>\n" ++
+        "</rss>\n",
+    lists:flatten(RSS).
+
+finalise_sitemap(Items) ->
+    SM = "<?xml version='1.0' encoding='UTF-8'>\n" ++
+        "<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9' \n" ++
+        "xmlns:image='http://www.google.com/schemas/sitemap-image/1.1' \n" ++
+        "xmlns:video='http://www.google.com/schemas/sitemap-video/1.1'>\n" ++
+        string:join(Items, "\n") ++ "\n" ++
+        "</urlset>\n",
+    lists:flatten(SM).
+
+get_rss_sitemap([], RSS, Sitemap) ->
+    {RSS, Sitemap};
+get_rss_sitemap([P | T], RSS, Sitemap) ->
+    NewRSS = make_RSS(P),
+    NewSM  = make_sitemap(P),
+    get_rss_sitemap(T, [NewRSS | RSS], [NewSM  | Sitemap]).
+
+get_nav([], Nav) ->
+    Nav;
+get_nav([P | T], Nav) ->
+    NewNav = make_line(P),
+    get_nav(T, [NewNav | Nav]).
+
+make_RSS(#page{title      = Title,
+               date       = Date,
+               outputfile = {Dir, File},
+               rss_hash   = Hash}) ->
+    Name = normalise(File),
+    Dir2 = case Dir of
+               [] -> "";
+               _  -> string:join(Dir, "/") ++ "/"
+           end,
+    "<item>\n" ++
+        "<title>" ++ Title ++ "</title>\n" ++
+        "<link><a href='/" ++ Dir2 ++ File ++ "'>" ++
+        Name ++ "</a></link>\n" ++
+        "<pubDate>" ++ dh_date:format("Y M d H i s", Date) ++ "</pubDate>\n" ++
+        "<guid>" ++ Hash ++ "</guid>\n" ++
+        "</item>\n".
+
+normalise(File) ->
+    File2 = filename:rootname(filename:basename(File)),
+    re:replace(File2, "-", " ", [global, {return, list}]).
+
+make_sitemap(#page{outputfile = {Dir, File}}) ->
+    Dir2 = case Dir of
+               [] -> "";
+               _  -> string:join(Dir, "/") ++ "/"
+           end,
+    URL = "/" ++ Dir2 ++ File,
+    "<url><loc>" ++ URL ++ "</loc></url>".
+
+make_line(#page{outputfile = {Dir, File}}) ->
+    Dir2 = string:join(Dir, "/"),
+    #navigation{dir = Dir2, file = File}.
+
+%% no blog no sidebar
+get_sidebar(_, false, Acc) ->
+    Acc;
+get_sidebar([], true, Acc) ->
+    Acc;
+get_sidebar([#page{title = Title,
+                   author = Author,
+                   date = Date,
+                   outputfile = OF} | T], true, Acc ) ->
+    get_sidebar(T, true, [{Title, Author, Date, OF} | Acc]).
+
+write_site(#site{pages      = Pages,
+                 outputdir  = OutputDir,
+                 components = Cs} = Site) ->
+    #components{rss     = RSS,
+                sitemap = SM} = Cs,
     ok = write_files(Pages, [], false, Site),
+    ok = file:write_file(OutputDir ++ "/sitemap.xml", SM),
+    ok = file:write_file(OutputDir ++ "/site.rss", RSS),
     ok.
 
 write_files([], _RevPath, _IsBlog, _Site) ->
@@ -115,21 +277,20 @@ process(File, Page, #site{pages    = Pages,
 
 p2(File, InputDir, Blogdir, DefModule, Page) ->
     {ok, Page2} = read_lines(File, Page),
-    #page{date = Date} = Page2,
     case filename:dirname(File) of
-        Blogdir -> Dest = make_dest(File, InputDir, DefModule, Date, true),
+        Blogdir -> Dest = make_dest(File, InputDir, DefModule, Page2, true),
                    Page2#page{is_blog    = true,
                               outputfile = Dest};
-        _       -> Dest = make_dest(File, InputDir, DefModule, Date, false),
+        _       -> Dest = make_dest(File, InputDir, DefModule, Page2, false),
                    Page2#page{is_blog    = false,
                               outputfile = Dest}
     end.
 
-make_dest(File, _InputDir, DefModule, Date, true) ->
-    Dir = ["_" | DefModule:blog_dir(Date)],
+make_dest(File, _InputDir, DefModule, Page, true) ->
+    Dir = ["_" | DefModule:blog_dir(Page)],
     HTML = filename:basename(File, ".hyde") ++ ".html",
     {Dir, HTML};
-make_dest(File, InputDir, _DefModule, _Date, false) ->
+make_dest(File, InputDir, _DefModule, _Page, false) ->
     Dir = string:tokens(filename:dirname(File), "/"),
     Path = make_path(string:tokens(InputDir, "/"), Dir),
     HTML = filename:basename(File, ".hyde") ++ ".html",
@@ -180,6 +341,22 @@ extract({type, Type}, Page) ->
     Page#page{type = Type};
 extract({tags, Tags}, Page) ->
     Page#page{tags = Tags};
+extract({meta, Meta}, #page{assets = Assets} = Page)
+  when is_list(Meta) ->
+    #assets{meta = M} = Assets,
+    Page#page{assets = Assets#assets{meta = lists:merge(Meta, M)}};
+extract({css, CSS}, #page{assets = Assets} = Page)
+  when is_list(CSS) ->
+    #assets{css = C} = Assets,
+    Page#page{assets = Assets#assets{css = lists:merge(CSS, C)}};
+extract({js_head, JS_Head}, #page{assets = Assets} = Page)
+  when is_list(JS_Head) ->
+    #assets{js_head = JSH} = Assets,
+    Page#page{assets = Assets#assets{js_head = lists:merge(JS_Head, JSH)}};
+extract({js_foot, JS_Foot}, #page{assets = Assets} = Page)
+  when is_list(JS_Foot) ->
+    #assets{js_foot = JSF} = Assets,
+    Page#page{assets = Assets#assets{js_foot = lists:merge(JS_Foot, JSF)}};
 extract(_, Page) ->
     Page.
 
@@ -191,7 +368,17 @@ finalise(#page{type = Type,
                 text     -> "<pre>" ++ NewM ++ "</pre>";
                 markdown -> markdown:conv(NewM)
             end,
-    P#page{main = NewM2}.
+    %% now get a hash to give a unique ID in RSS
+    Block =term_to_binary([
+                           P#page.main,
+                           P#page.title,
+                           P#page.author,
+                           P#page.date
+                          ]),
+    Hash = binary_to_list(crypto:hash(md4, Block)),
+    Hash2 = binary_to_list(base64:encode(Hash)),
+    P#page{main     = NewM2,
+           rss_hash = Hash2}.
 
 add_page([], Page, Pages) ->
     NewV = case lists:keyfind("", 1, Pages) of

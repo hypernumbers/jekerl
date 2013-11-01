@@ -11,12 +11,14 @@
          jekerl/2
         ]).
 
--define(INPUTDIR,  "./priv/jekerl").
+-define(TITLE,     "Jerkerl Static Blog Generator").
+-define(URL,       "example.com").
+-define(DESC,      "a jekerl blog").
+-define(INPUTDIR,  "./priv/hyde").
 -define(OUTPUTDIR, "./priv/html").
 -define(ASSETSDIR, "./priv/assets").
--define(BLOGDIR,   "./priv/jekerl/blog").
+-define(BLOGDIR,   "./priv/hyde/blog").
 -define(DEFMODULE, defaults).
-
 
 jekerl(_A, B) ->
     code:add_patha("./ebin"),
@@ -25,7 +27,8 @@ jekerl(_A, B) ->
         "jekerl.app.src" -> Opts = [
                                     {disqus, "blahbalbh"}
                                    ],
-                            make_site:make_site(?INPUTDIR, ?OUTPUTDIR,
+                            make_site:make_site(?TITLE, ?URL, ?DESC,
+                                                ?INPUTDIR, ?OUTPUTDIR,
                                                 ?ASSETSDIR, ?BLOGDIR,
                                                 ?DEFMODULE, Opts);
         _                -> ok

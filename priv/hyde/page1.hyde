@@ -2,6 +2,10 @@
 {author, "Gordon Guthrie"}.
 {title, "Page 1"}.
 {type, html}.
+{meta, ["bnajo"]}.
+{css, ["erko", "berko"]}.
+{js_head, ["yanod", "snando"]).
+{js_foot, ["glog", "snog"]}.
 
 %%%%%%%%%%%%
 
