@@ -64,7 +64,6 @@
           outputdir                                       :: list(),
           assetsdir                                       :: list(),
           blogdir                                         :: list(),
-          assets     = #assets{}                          :: #assets{},
           defaults                                        :: def_module(),
           components = #components{}                      :: #components{},
           options    = []                                 :: list(),

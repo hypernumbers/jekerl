@@ -9,7 +9,8 @@
 
 -export([
          make_site/9,
-         make_site/1
+         make_site/1,
+         normalise/1
         ]).
 
 -include("html.hrl").
@@ -34,7 +35,14 @@ make_site(Site) when is_record(Site, site) ->
     NewSite = process_files([Site#site.inputdir], Site),
     NewSite2 = process_site(NewSite),
     ok = write_site(NewSite2),
+    ok = copy_assets(Site#site.assetsdir, Site#site.outputdir),
     ok.
+
+copy_assets(AssetsDir, OutputDir) ->
+    [H | _T] = lists:reverse(string:tokens(AssetsDir, "/")),
+    To = lists:flatten([OutputDir, "/_", H]),
+    ok = delete_directory(To),
+    ok = recursive_copy(AssetsDir, To).
 
 process_site(#site{pages    = Pages,
                    defaults = DefModule} = Site) ->
@@ -91,18 +99,31 @@ merge(C1, C2, Seg, RevPath) ->
                "_" -> "Blog";
                _   -> Seg
            end,
-    SubNav = #navigation{dir    = Dir,
-                         file   = Seg2,
-                         subnav = N2},
-    #components{navigation = merge2(N1, [SubNav]),
+    SubNav = case N2 of
+                 none -> none;
+                 _    -> #navigation{dir    = Dir,
+                                     file   = Seg2,
+                                     subnav = N2}
+             end,
+    NewM = merge3(N1, SubNav),
+    #components{navigation = NewM,
                 sidebar    = merge2(SB1, SB2),
                 rss        = merge2(R1, R2),
                 sitemap    = merge2(SM1, SM2)}.
 
 merge2(none, none) -> [];
 merge2(none, M)    -> M;
-merge2(M, none)    -> M;
-merge2(M1, M2)     -> lists:merge([M1, M2]).
+merge2(M,    none) -> M;
+merge2(M1,   M2)   -> lists:merge([M1, M2]).
+
+merge3(none, none)                  -> [];
+merge3(none, M)    when is_list(M)  -> M;
+merge3(none, M)                     -> [M];
+merge3(M,    none) when is_list(M)  -> M;
+merge3(M,    none)                  -> [M];
+merge3(M1,   M2)   when is_list(M1) -> #navigation{file = File} = M2,
+                                       lists:keystore(File, 3, M1, M2);
+merge3(M1,   M2)                    -> lists:merge([M1], [M2]).
 
 finalise_rss(#site{title       = Title,
                    url         = URL,
@@ -184,8 +205,13 @@ get_sidebar([], true, Acc) ->
 get_sidebar([#page{title = Title,
                    author = Author,
                    date = Date,
-                   outputfile = OF} | T], true, Acc ) ->
-    get_sidebar(T, true, [{Title, Author, Date, OF} | Acc]).
+                   outputfile = {Dir, File}} | T], true, Acc ) ->
+    URL = string:join(Dir, "/") ++ "/" ++ File,
+    Sidebar = #sidebar{title  = Title,
+                       url    = URL,
+                       date   = Date,
+                       author = Author},
+    get_sidebar(T, true, [Sidebar | Acc]).
 
 write_site(#site{pages      = Pages,
                  outputdir  = OutputDir,
@@ -223,22 +249,28 @@ write_files([{Seg, {Pages, Contents}} | T], RevPath, IsBlog, Site) ->
     write_files(T, RevPath, IsBlog, Site).
 
 write_index(Dir, Pages, Site) ->
+    #site{inputdir = InputDir} = Site,
     Main = ["<p><a href='./" ++ X ++ "'>" ++ X ++ "</a></p>"
             || #page{outputfile = {_, X}} <- Pages],
+    Path = make_path(string:tokens(InputDir, "/"), string:tokens(Dir, "/")),
     Page = #page{main       = lists:flatten(Main),
-                 outputfile = {Dir, "index.html"}},
+                 outputfile = {Path, "index.html"}},
     write_file(Dir, Page, Site).
 
 write_contents(Dir, Contents, Site) ->
+    #site{inputdir = InputDir} = Site,
     Main = ["<a href='./" ++ X ++ "/'>" ++ X ++ "</a>" || {X, _} <- Contents],
+    Path = make_path(string:tokens(InputDir, "/"), string:tokens(Dir, "/")),
     Page = #page{main       = lists:flatten(Main),
-                 outputfile = {Dir, "index.html"}},
+                 outputfile = {Path, "index.html"}},
     write_file(Dir, Page, Site).
 
 write_blank(Dir, Site) ->
-    #site{defaults = DefModule} = Site,
+    #site{inputdir = InputDir,
+          defaults = DefModule} = Site,
+    Path = make_path(string:tokens(InputDir, "/"), string:tokens(Dir, "/")),
     Page = #page{main       = DefModule:blank_page(),
-                 outputfile = {Dir, "index.html"}},
+                 outputfile = {Path, "index.html"}},
     write_file(Dir, Page, Site).
 
 write_file(Dir, P, Site) ->
@@ -247,8 +279,38 @@ write_file(Dir, P, Site) ->
     ok = filelib:ensure_dir(File),
     file:write_file(File, HTML).
 
-make_html(#page{main = M, outputfile = {_, FileName}}, _Site) ->
-    {FileName, M}.
+make_html(Page, Site) ->
+    #site{title      = Title,
+          defaults   = DefModule,
+          components = Components} = Site,
+    #page{assets     = Assets,
+          outputfile = {Crumbs, FileName},
+          main       = Main} = Page,
+    Signature = DefModule:signature(),
+    Head = html:head([
+                      DefModule:title(Title),
+                      DefModule:meta(Assets#assets.meta),
+                      DefModule:js_head(Assets#assets.js_head),
+                      DefModule:css(Assets#assets.css)
+                     ]),
+    Body = html:body([
+                      DefModule:layout(Title,
+                                       Main,
+                                       Components#components.navigation,
+                                       DefModule:crumbs(Crumbs, FileName),
+                                       Components#components.sidebar,
+                                       DefModule:footer()),
+                      DefModule:js_foot(Assets#assets.js_foot)
+                      ]),
+    HTML = lists:flatten([
+                          DefModule:doctype(),
+                          html:html([
+                                     Head,
+                                     Signature,
+                                     Body
+                                    ], "en")
+                         ]),
+    {FileName, HTML}.
 
 process_files([], Site) ->
     Site;
@@ -286,10 +348,11 @@ p2(File, InputDir, Blogdir, DefModule, Page) ->
                               outputfile = Dest}
     end.
 
-make_dest(File, _InputDir, DefModule, Page, true) ->
+make_dest(File, InputDir, DefModule, Page, true) ->
     Dir = ["_" | DefModule:blog_dir(Page)],
+    Path = make_path(string:tokens(InputDir, "/"), Dir),
     HTML = filename:basename(File, ".hyde") ++ ".html",
-    {Dir, HTML};
+    {Path, HTML};
 make_dest(File, InputDir, _DefModule, _Page, false) ->
     Dir = string:tokens(filename:dirname(File), "/"),
     Path = make_path(string:tokens(InputDir, "/"), Dir),
@@ -417,6 +480,57 @@ clear_old_files(Dir) ->
         {ok, Files} -> [ok = file:delete(Dir ++ "/" ++ X) || X <- Files],
                        ok
     end.
+
+%% Recursively copy directories
+-spec recursive_copy(list(), list()) -> ok.
+recursive_copy(From, To) ->
+    {ok, Files} = file:list_dir(From),
+    [ok = rec_copy1(From, To, X) || X <- Files],
+    ok.
+
+% ignore hidden
+rec_copy1(_From, _To, [$. | _T]) ->
+    ok;
+rec_copy1(From, To, File) ->
+
+    NewFrom = filename:join(From, File),
+    NewTo   = filename:join(To, File),
+
+    case filelib:is_dir(NewFrom) of
+
+        true  ->
+            ok = filelib:ensure_dir(NewTo),
+            recursive_copy(NewFrom, NewTo);
+
+        false ->
+            case filelib:is_file(NewFrom) of
+                true  ->
+                    ok = filelib:ensure_dir(NewTo),
+                    {ok, _} = file:copy(NewFrom, NewTo),
+                    ok;
+                false ->
+                    ok
+            end
+    end.
+
+%% Delete a directory (and all its children)
+-spec delete_directory(string()) -> ok.
+delete_directory(From) ->
+    case file:list_dir(From) of
+        {ok, Files} ->
+            file:list_dir(From),
+            [ok = delete_dir(filename:join(From, File)) || File <- Files],
+            ok = file:del_dir(From);
+        _Else ->
+            ok
+    end.
+
+delete_dir(File) ->
+    case filelib:is_dir(File) of
+        true  -> delete_directory(File);
+        false -> file:delete(File)
+    end.
+
 
 %%%
 %%% Unit Tests and stuff
