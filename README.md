@@ -1,4 +1,9 @@
-jekerl
+Jekerl
 ======
 
-jekerl generates jekyll websites from spreadsheet data
+Jekerl is a clone of jekyll in Erlang
+
+Status
+======
+
+Alpha - but on its way
