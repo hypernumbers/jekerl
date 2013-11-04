@@ -1,6 +1,6 @@
 *~
 *.beam
-/priv/upload/*
-/priv/_posts/*
+.eunit/
+/priv/html/*
 /deps/*
 /ebin/jekerl.app
