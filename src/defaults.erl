@@ -26,8 +26,8 @@
 
 -include("jekerl.hrl").
 
--define(CSS,    ["/_assets/css/jekerl.css"]).
--define(JSHEAD, ["/_assets/js/jekerl.js"]).
+-define(CSS,    ["_assets/css/jekerl.css"]).
+-define(JSHEAD, ["_assets/js/jekerl.js"]).
 -define(JSFOOT, []).
 
 %%%
@@ -89,7 +89,8 @@ blank_page() ->
 
 %% makes the navigation line
 make_navigation(Nav) ->
-    make_n2(Nav, []).
+    Hamburger = html:a("#menu", "Menu", "Menu", "", "navmenu"),
+    lists:flatten([Hamburger | make_n2(Nav, [])]).
 
 make_n2([], []) ->
     [];

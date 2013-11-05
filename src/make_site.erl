@@ -283,18 +283,23 @@ make_html(Page, Site) ->
     #site{title      = Title,
           defaults   = DefModule,
           components = Components} = Site,
-    #page{assets     = Assets,
+    #page{title      = PageTitle,
+          assets     = Assets,
           outputfile = {Crumbs, FileName},
           main       = Main} = Page,
     Signature = DefModule:signature(),
+    BrowserTitle = case PageTitle of
+                       [] -> Title;
+                       _  -> PageTitle
+                   end,
     Head = html:head([
-                      DefModule:title(Title),
+                      DefModule:title(BrowserTitle),
                       DefModule:meta(Assets#assets.meta),
                       DefModule:js_head(Assets#assets.js_head),
                       DefModule:css(Assets#assets.css)
                      ]),
     Body = html:body([
-                      DefModule:layout(Title,
+                      DefModule:layout(PageTitle,
                                        Main,
                                        Components#components.navigation,
                                        DefModule:crumbs(Crumbs, FileName),

@@ -1,0 +1,139 @@
+/* Font Declarations */
+
+/* Body Fonts */
+
+@font-face {
+    font-family: 'robotoregular';
+    src: url('../fonts/roboto_regular/Roboto-Regular-webfont.eot');
+    src: url('../fonts/roboto_regular/Roboto-Regular-webfont.eot?#iefix') format('embedded-opentype'),
+         url('../fonts/roboto_regular/Roboto-Regular-webfont.woff') format('woff'),
+         url('../fonts/roboto_regular/Roboto-Regular-webfont.ttf') format('truetype'),
+         url('../fonts/roboto_regular/Roboto-Regular-webfont.svg#robotoregular') format('svg');
+    font-weight: normal;
+    font-style: normal;
+}
+
+@font-face {
+    font-family: 'robotoitalic';
+    src: url('../fonts/roboto_italic/Roboto-Italic-webfont.eot');
+    src: url('../fonts/roboto_italic/Roboto-Italic-webfont.eot?#iefix') format('embedded-opentype'),
+         url('../fonts/roboto_italic/Roboto-Italic-webfont.woff') format('woff'),
+         url('../fonts/roboto_italic/Roboto-Italic-webfont.ttf') format('truetype'),
+         url('../fonts/roboto_italic/Roboto-Italic-webfont.svg#robotoitalic') format('svg');
+    font-weight: normal;
+    font-style: normal;
+
+}
+
+@font-face {
+    font-family: 'robotobold';
+    src: url('../fonts/roboto_bold/Roboto-Bold-webfont.eot');
+    src: url('../fonts/roboto_bold/Roboto-Bold-webfont.eot?#iefix') format('embedded-opentype'),
+         url('../fonts/roboto_bold/Roboto-Bold-webfont.woff') format('woff'),
+         url('../fonts/roboto_bold/Roboto-Bold-webfont.ttf') format('truetype'),
+         url('../fonts/roboto_bold/Roboto-Bold-webfont.svg#robotobold') format('svg');
+    font-weight: normal;
+    font-style: normal;
+}
+
+/* Display Fonts */
+
+@font-face {
+    font-family: 'roboto_condensedlight';
+    src: url('../fonts/roboto_lightcondensed/RobotoCondensed-Light-webfont.eot');
+    src: url('../fonts/roboto_lightcondensed/RobotoCondensed-Light-webfont.eot?#iefix') format('embedded-opentype'),
+         url('../fonts/roboto_lightcondensed/RobotoCondensed-Light-webfont.woff') format('woff'),
+         url('../fonts/roboto_lightcondensed/RobotoCondensed-Light-webfont.ttf') format('truetype'),
+         url('../fonts/roboto_lightcondensed/RobotoCondensed-Light-webfont.svg#roboto_condensedlight') format('svg');
+    font-weight: normal;
+    font-style: normal;
+}
+
+/* Start of CSS Proper */
+
+body {
+    font-family : "robotoregular", serif;
+    color       : #533;
+    font-size   : 100%;
+    line-height : 125%;
+    text-align  : left;
+    margin      : 0 auto;
+}
+
+h1, h2, h3 {
+    font-family : "roboto_condensedlight", serif;
+    margin-top : 0;
+    margin-bottom :0;
+    color: #a99;
+    line-height: 1.25;
+    }
+
+h1 {
+    font-size : 1.5em;
+    padding   : 1.45833em 0;
+}
+
+h2 {
+    font-size : 1.33333em;
+    padding   : 1.25em 0;
+}
+
+h3 {
+    font-size : 1.16667em;
+    padding   : 1.51786em 0;
+}
+
+/* Define the Hamburger menu */
+
+.navmenu {
+  position: relative;
+  padding-left: 1.25em;
+}
+.navmenu:before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.25em;
+  width: 1em;
+  height: 0.15em;
+  background: black;
+  box-shadow:
+    0 0.25em 0 0 black,
+    0 0.5em 0 0 black;
+}
+
+/* Now the media queries */
+
+@media (max-width: 22em) {
+    body {
+        font-size : .9em;
+        padding   : 1 1.5em;
+    }
+    aside {
+        display : none;
+    }
+}
+
+@media (max-width: 34em) {
+    body {
+        max-width : 51em;
+        }
+
+    article {
+        width  : 66.6666%;
+        /* margin : 0 0 0 33.33333%; */
+        margin : 0 0 0 0;
+        float  : left;
+    }
+
+    aside {
+        width  : 33.33%;
+        margin : 0 0 0 0%;
+        float  : right;
+    }
+
+}
+
+article, aside {
+    border : solid 1px #f00;
+}
