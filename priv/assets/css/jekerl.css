@@ -1,3 +1,42 @@
+/* Reset */
+
+html, body, div, span, applet, object, iframe,
+h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+a, abbr, acronym, address, big, cite, code,
+del, dfn, em, font, img, ins, kbd, q, s, samp,
+small, strike, strong, sub, sup, tt, var,
+dl, dt, dd, ol, ul, li,
+fieldset, form, label, legend,
+table, caption, tbody, tfoot, thead, tr, th, td {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	outline: 0;
+	font-weight: inherit;
+	font-style: inherit;
+	font-size: 100%;
+	font-family: inherit;
+	vertical-align: baseline;
+}
+/* remember to define focus styles! */
+:focus {
+	outline: 0;
+}
+body {
+	line-height: 1;
+	color: black;
+	background: white;
+}
+ul {
+	list-style-type : disc;
+  padding         : 1em;
+}
+
+ol {
+	list-style-type : lower-greek;
+  padding         : 1em;
+}
+
 /* Font Declarations */
 
 /* Body Fonts */
@@ -54,34 +93,14 @@
 body {
     font-family : "robotoregular", serif;
     color       : #533;
-    font-size   : 100%;
-    line-height : 125%;
     text-align  : left;
     margin      : 0 auto;
 }
 
 h1, h2, h3 {
     font-family : "roboto_condensedlight", serif;
-    margin-top : 0;
-    margin-bottom :0;
     color: #a99;
-    line-height: 1.25;
     }
-
-h1 {
-    font-size : 1.5em;
-    padding   : 1.45833em 0;
-}
-
-h2 {
-    font-size : 1.33333em;
-    padding   : 1.25em 0;
-}
-
-h3 {
-    font-size : 1.16667em;
-    padding   : 1.51786em 0;
-}
 
 /* Define the Hamburger menu */
 

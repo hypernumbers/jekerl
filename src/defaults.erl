@@ -26,7 +26,11 @@
 
 -include("jekerl.hrl").
 
--define(CSS,    ["_assets/css/jekerl.css"]).
+-define(CSS,    [
+                 "_assets/css/jekerl.css",
+                 "_assets/css/traditional.css"
+                 % "_assets/css/
+                ]).
 -define(JSHEAD, ["_assets/js/jekerl.js"]).
 -define(JSFOOT, []).
 
@@ -37,12 +41,13 @@
 doctype() ->
     "<!DOCTYPE html>".
 
-layout(Title, Main, Navigation, Crumbs, Sidebar, Footer) ->
-    Nav = html:nav(Navigation),
+layout(Title, Main, Navigation, _Crumbs, Sidebar, Footer) ->
+    _Nav = html:nav(Navigation),
     Title2 = html:header(html:h2(Title)),
     Article = html:article([Title2, Main]),
     Aside = html:aside(Sidebar),
-    [Nav, Crumbs, Article, Aside, Footer].
+    % [Nav, Crumbs, Article, Aside, Footer].
+    [Article, Aside, Footer].
 
 crumbs(Dir, File) ->
     crumbs2(Dir, File, [], []).
