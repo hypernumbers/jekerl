@@ -291,7 +291,6 @@ make(Tag, Id, Class, Content) when is_list(Tag)   andalso
                                    is_list(Id)    andalso
                                    is_list(Class) andalso
                                    is_list(Content) ->
-
     Inner = remove_empties([
                             id(Id),
                             class(Class)
@@ -299,7 +298,7 @@ make(Tag, Id, Class, Content) when is_list(Tag)   andalso
     case string:join(Inner, " ") of
         []   ->  "<" ++ Tag ++
                    ">" ++ Content ++ "</" ++ Tag ++ ">";
-        List -> "<" + Tag ++ " " ++
+        List -> "<" ++ Tag ++ " " ++
                     List ++
                     ">" ++ Content ++ "</" ++ Tag ++ ">"
     end.

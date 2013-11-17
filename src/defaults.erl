@@ -20,6 +20,8 @@
          footer/0,
          blog_dir/1,
          blank_page/0,
+         headline/2,
+         lede/1,
          make_navigation/1,
          make_sidebar/1
         ]).
@@ -28,11 +30,15 @@
 
 -define(CSS,    [
                  "_assets/css/jekerl.css",
+                 "_assets/fonts/shinn/stylesheet.css",
                  "_assets/css/traditional.css"
                  % "_assets/css/
                 ]).
--define(JSHEAD, ["_assets/js/jekerl.js"]).
--define(JSFOOT, []).
+-define(JSHEAD, []).
+-define(JSFOOT, [
+                 "_assets/jquery/jquery-1.10.2.min.js",
+                 "_assets/js/jekerl.js"
+                ]).
 
 %%%
 %%% API
@@ -41,13 +47,14 @@
 doctype() ->
     "<!DOCTYPE html>".
 
-layout(Title, Main, Navigation, _Crumbs, Sidebar, Footer) ->
-    _Nav = html:nav(Navigation),
-    Title2 = html:header(html:h2(Title)),
-    Article = html:article([Title2, Main]),
+layout(Headline, Main, Navigation, Crumbs, Sidebar, Footer) ->
+    Headline2 = html:header(Headline),
+    Nav = html:nav([Navigation], "", ["menu"]),
+    Crms = html:nav([Crumbs]),
+    Article = html:article([Main]),
     Aside = html:aside(Sidebar),
     % [Nav, Crumbs, Article, Aside, Footer].
-    [Article, Aside, Footer].
+    [Nav, Crms, Headline2, Article, Aside, Footer].
 
 crumbs(Dir, File) ->
     crumbs2(Dir, File, [], []).
@@ -60,7 +67,8 @@ title(Title) ->
     html:title(Title).
 
 meta(Additional) when is_list(Additional) ->
-    Meta = "<meta charset=utf-8' />\n",
+    Meta = "<meta charset=utf-8' />\n" ++
+        "<meta name='viewport' content='device-width, initial-scale=1', maximum-scale=1.0, user-scalable=0'>\n",
     case Additional of
         [] -> Meta;
         _  -> lists:flatten([Meta | Additional])
@@ -79,7 +87,7 @@ js_foot(Additional) when is_list(Additional) ->
     make_js(List, []).
 
 footer() ->
-    html:p(["some bloody footer here please..."]).
+    html:p(["some bloody footer here please..."], [], "clear").
 
 %% gets data in - returns directory structure
 blog_dir(#page{date = {{Year, Month, _Day}, _}}) ->
@@ -92,9 +100,18 @@ blog_dir(#page{date = {{Year, Month, _Day}, _}}) ->
 blank_page() ->
     html:dv("This page left intentionally blank").
 
+headline(Headline, Lede) ->
+    [
+     html:h1(Headline, [], "headline"),
+     html:p(Lede, [], "lede")
+    ].
+
+lede(Lede) ->
+    html:p(Lede, [], "lede").
+
 %% makes the navigation line
 make_navigation(Nav) ->
-    Hamburger = html:a("#menu", "Menu", "Menu", "", "navmenu"),
+    Hamburger = html:a("#menu", "Menu", "Menu", "navmenu"),
     lists:flatten([Hamburger | make_n2(Nav, [])]).
 
 make_n2([], []) ->
@@ -105,9 +122,13 @@ make_n2([#navigation{dir = Dir, file = File, subnav = SN} | T], Acc) ->
     SN2 = make_n2(SN, []),
     URL = Dir ++ "/" ++ File,
     Menu = make_site:normalise(File),
+    Menu2= case Menu of
+               [] -> "Home";
+               _  -> Menu
+           end,
     NewAcc = case SN2 of
-                 [] -> html:li([html:a(URL, Menu)]);
-                 _  -> html:li([html:a(URL, Menu) | SN2])
+                 [] -> html:li([html:a(URL, Menu2)]);
+                 _  -> html:li([html:a(URL, Menu2) | SN2])
              end,
     make_n2(T, [NewAcc | Acc]).
 

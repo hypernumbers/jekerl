@@ -13,6 +13,8 @@
 
 -record(page, {
           title      = []        :: list(),
+          headline   = []        :: list(),
+          lede       = []        :: list(),
           author     = []        :: list(),
           date       = []        :: list(),
           type       = text      :: hyde_type(),

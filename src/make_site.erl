@@ -284,6 +284,8 @@ make_html(Page, Site) ->
           defaults   = DefModule,
           components = Components} = Site,
     #page{title      = PageTitle,
+          headline   = Headline,
+          lede       = Lede,
           assets     = Assets,
           outputfile = {Crumbs, FileName},
           main       = Main} = Page,
@@ -299,7 +301,7 @@ make_html(Page, Site) ->
                       DefModule:css(Assets#assets.css)
                      ]),
     Body = html:body([
-                      DefModule:layout(PageTitle,
+                      DefModule:layout(DefModule:headline(Headline, Lede),
                                        Main,
                                        Components#components.navigation,
                                        DefModule:crumbs(Crumbs, FileName),
@@ -399,6 +401,10 @@ handle(Line, true, Page) ->
 handle(Data, false, #page{main = M} = Page) ->
     {false, Page#page{main = [Data | M]}}.
 
+extract({headline, Headline}, Page) ->
+    Page#page{headline = Headline};
+extract({lede, Lede}, Page) ->
+    Page#page{lede = Lede};
 extract({date, Date}, Page) ->
     Page#page{date = dh_date:parse(Date)};
 extract({author, Author}, Page) ->

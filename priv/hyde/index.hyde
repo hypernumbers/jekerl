@@ -2,6 +2,8 @@
 {author, "Gordon Guthrie"}.
 {title, "LuvvieScript"}.
 {type, markdown}.
+{headline, "Freddie Star Eat My Hamster"}.
+{lede, "Grinning comedian in helpless pet snack horror"}.
 
 %%%%%%%%%%%%
 
@@ -21,8 +23,8 @@ Yerlo merlo, burb:
 
 So is this:
 
-1 limit
-2 shimit
+1. limit
+2. shimit
 
        not sure what is going on here
        but it will havppen
